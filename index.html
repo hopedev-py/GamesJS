@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jersey+15&display=swap" rel="stylesheet">
+
+  <title>Snake Game</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+      overflow: hidden; /* Impede o scroll da tela */
+      background-color: #05191f; /* Cor de fundo */
+    }
+
+    #game-container {
+      height: calc(50vh - 2px); /* 60% da altura da tela menos a borda do canvas */
+      display: flex;
+      justify-content: center;
+      align-items: top;
+      padding-top: 5px;
+      border: solid 0px yellow;
+      width: 505px;
+    }
+
+    #gameCanvas {
+      border: 2px solid #333;
+      width: 98%; /* Largura responsiva */
+      height: 480px;
+      border-radius: 15px;
+      background-color: #0f0d0d; /* Cor de fundo do canvas */
+    }
+
+    #controls {
+      height: calc(39vh - 2px); /* 40% da altura da tela menos a borda dos botões */
+      display: flex;
+      justify-content: center;
+      align-items: top;
+      width: 505px;
+      /*height: 30Vh;*/
+      background-color: #05191f;
+      border: solid 0px tomato;
+    }
+
+    .controls {
+      border: solid 0px #fff;
+      font-size: 1.1rem;
+      padding: 5px;
+      border-radius: 8px;
+    }
+
+    #scoreHUD {
+    font-family: "Jersey 15", sans-serif;
+    font-weight: 200;
+    font-style: normal;
+      position: absolute;
+      display: flex;
+      justify-content: center;
+      align-items: top;
+      border: solid 0px lime;
+      top: 10px;
+      left: 10px;
+      width: 95vw;
+      font-size: 1.3rem;
+      padding: 5px 0px 5px 0px;
+      color: snow;
+    }
+
+    .Score {
+      margin-left: 0px;
+    }
+
+    /* Estilos para o joystick */
+    #joystick-container {
+      width: 200px;
+      height: 200px;
+      margin-top: 5vh;
+      position:sticky;/**/
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: top;
+      pointer-events: none; /* Impede que o joystick interfira com outros elementos */
+    }
+
+    #joystick-outer {
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      border: 2px solid #333;
+      background-color: rgba(255, 255, 255, 0.8);
+      position: relative;
+    }
+
+    #joystick-inner {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background-color:#595959;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      transition: transform 0.1s ease-in-out; /* Transição suave do movimento */
+    }
+
+
+table , td, th {
+	border: 0px solid #595959;
+	border-collapse: collapse;
+}
+td, th {
+    width: 99vw;
+	padding: 3px;
+	
+}
+th {
+	background: #f0e6cc;
+}
+
+  </style>
+</head>
+<body>
+
+  <div id="game-container" style="">
+    <canvas id="gameCanvas" width="500" height="480"></canvas>
+  </div>
+  <div id="controls">
+
+    <!-- ================= -->
+    <center>
+    <table width:100%; border="1">
+        <tbody>
+            <tr style="height: 50px; background-color: #333;" align="center">
+                <td><button id="startButton" class="controls">▶️ Start</button></td>
+                <td><button id="pauseButton" class="controls">⏸️ Pause</button></td>
+                <td><button id="resetButton" class="controls">🔄 Reset</button></td>
+            </tr>
+            <tr>
+                <td colspan="3" align="center">
+                    <div id="joystick-container">
+                        <div id="joystick-outer">
+                          <div id="joystick-inner"></div>
+                        </div>
+                      </div>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    </center>
+    <!-- ================= -->
+
+  </div>
+  <div id="scoreHUD">
+    <label class="Score">Pontuação: <span id="scoreValue">0</span></label>
+  </div>
+
+  <audio id="eatSound">
+    <source src="eat.mp3" type="audio/mp3">
+    Your browser does not support the audio element.
+  </audio>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const startButton = document.getElementById('startButton');
+    const pauseButton = document.getElementById('pauseButton');
+    const resetButton = document.getElementById('resetButton');
+    const scoreHUD = document.getElementById('scoreValue');
+    const eatSound = document.getElementById('eatSound');
+    let gameInterval;
+    let snake = [{ x: 10, y: 10 }];
+    let direction = 'right';
+    let isPaused = false;
+    let gameSpeed = 200; // Velocidade inicial do jogo em milissegundos
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let score = 0; // Pontuação inicial do jogador
+    let apples = []; // Array para armazenar as maçãs
+    const appleColors = ['#FFFF00', '#FF0000', '#00CED1']; // Cores das maçãs (amarela, vermelha, azul turquesa)
+
+    // Variáveis para o joystick
+    const joystickOuter = document.getElementById('joystick-outer');
+    const joystickInner = document.getElementById('joystick-inner');
+    let joystickCenterX = 0;
+    let joystickCenterY = 0;
+    let joystickRadius = 75; // Raio do joystick externo
+
+    // Event listeners para o joystick
+    joystickOuter.addEventListener('mousedown', handleJoystickStart);
+    document.addEventListener('mousemove', handleJoystickMove);
+    document.addEventListener('mouseup', handleJoystickEnd);
+    joystickOuter.addEventListener('touchstart', handleJoystickStart);
+    document.addEventListener('touchmove', handleJoystickMove);
+    document.addEventListener('touchend', handleJoystickEnd);
+
+    function handleJoystickStart(event) {
+      event.preventDefault(); // Impede o scroll durante o toque
+      const rect = joystickOuter.getBoundingClientRect();
+      joystickCenterX = rect.left + joystickRadius;
+      joystickCenterY = rect.top + joystickRadius;
+      handleJoystickMove(event);
+    }
+
+        function handleJoystickMove(event) {
+            if (joystickCenterX === 0 || joystickCenterY === 0) return;
+            let clientX, clientY;
+            if (event.type.startsWith('touch')) {
+                clientX = event.touches[0].clientX;
+                clientY = event.touches[0].clientY;
+            } else {
+                clientX = event.clientX;
+                clientY = event.clientY;
+            }
+            let deltaX = clientX - joystickCenterX;
+            let deltaY = clientY - joystickCenterY;
+
+            // Limitar o movimento do joystick ao raio do joystick externo
+            let distance = Math.min(Math.sqrt(deltaX * deltaX + deltaY * deltaY), joystickRadius);
+            let newX = joystickCenterX + distance * Math.cos(Math.atan2(deltaY, deltaX));
+            let newY = joystickCenterY + distance * Math.sin(Math.atan2(deltaY, deltaX));
+            
+            // Atualizar a posição do joystick interno
+            joystickInner.style.left = `${newX - joystickInner.offsetWidth / 2}px`;
+            joystickInner.style.top = `${newY - joystickInner.offsetHeight / 2}px`;
+
+            setDirectionFromAngle(Math.atan2(deltaY, deltaX));
+       }
+
+
+    function handleJoystickEnd(event) {
+      joystickInner.style.transform = 'translate(-50%, -50%)'; // Retorna o joystick ao centro
+      joystickCenterX = 0;
+      joystickCenterY = 0;
+      resetDirection();
+    }
+
+    function setDirectionFromAngle(angle) {
+      if (angle > -Math.PI / 4 && angle <= Math.PI / 4) {
+        direction = 'right';
+      } else if (angle > Math.PI / 4 && angle <= 3 * Math.PI / 4) {
+        direction = 'down';
+      } else if (angle > 3 * Math.PI / 4 || angle <= -3 * Math.PI / 4) {
+        direction = 'left';
+      } else {
+        direction = 'up';
+      }
+    }
+
+    function resetDirection() {
+      //direction = ''; // Reseta a direção quando nenhum botão é pressionado
+    }
+
+    function generateApple(color) {
+      const x = Math.floor(Math.random() * (canvas.width / 20));
+      const y = Math.floor(Math.random() * (canvas.height / 20));
+      const apple = { x, y, color };
+      apples.push(apple);
+    }
+
+    function spawnApples() {
+      // Gerar maçãs amarelas aleatoriamente até 5 unidades
+      while (apples.length < 5) {
+        generateApple(appleColors[0]); // Maçã amarela
+      }
+
+      // Verificar se uma maçã azul turquesa deve aparecer (aleatoriamente)
+      if (Math.random() < 0.1) { // Ajuste a porcentagem conforme desejado
+        generateApple(appleColors[2]); // Maçã azul turquesa
+        setTimeout(() => {
+          apples.pop(); // Remove a maçã azul turquesa após alguns segundos
+        }, 5000); // 5000 milissegundos (5 segundos)
+      }
+
+      // Verificar se uma maçã vermelha deve aparecer (aleatoriamente)
+      if (Math.random() < 0.05) { // Ajuste a porcentagem conforme desejado
+        generateApple(appleColors[1]); // Maçã vermelha
+      }
+    }
+
+/*
+    function drawApples() {
+      apples.forEach(apple => {
+        ctx.fillStyle = apple.color;
+        ctx.fillRect(apple.x * 20, apple.y * 20, 20, 20);
+      });
+    }
+*/
+//======================
+    // Definições dos emojis para as maçãs
+    const emojiYellowApple = '🍌'; // Emoji de maçã amarela
+    const emojiRedApple = '🍒'; // Emoji de maçã vermelha
+    const emojiBlueApple = '🍇'; // Emoji de maçã azul turquesa (substitua pelo emoji correto)
+
+    // Função para desenhar as maçãs na tela
+    function drawApples() {
+    apples.forEach(apple => {
+        let emoji;
+        switch (apple.color) {
+        case appleColors[0]: // Maçã amarela
+            emoji = emojiYellowApple;
+            break;
+        case appleColors[1]: // Maçã vermelha
+            emoji = emojiRedApple;
+            break;
+        case appleColors[2]: // Maçã azul turquesa
+            emoji = emojiBlueApple;
+            break;
+        default:
+            emoji = '❓'; // Emoji de interrogação para cores desconhecidas
+            break;
+        }
+        
+        // Desenha o emoji na posição da maçã
+        ctx.font = '20px Arial'; // Defina o tamanho e a fonte do emoji
+        ctx.fillText(emoji, apple.x * 20, apple.y * 20 + 20); // +20 para centralizar verticalmente
+    });
+    }
+//======================
+
+    function moveSnake() {
+      const head = { x: snake[0].x, y: snake[0].y };
+
+      // Movimento suave da cobrinha
+      const newX = snake[0].x + (direction === 'left' ? -1 : direction === 'right' ? 1 : 0);
+      const newY = snake[0].y + (direction === 'up' ? -1 : direction === 'down' ? 1 : 0);
+      head.x = (newX + canvas.width / 20) % (canvas.width / 20);
+      head.y = (newY + canvas.height / 20) % (canvas.height / 20);
+
+      // Verificar se a cobrinha colidiu com alguma maçã
+      apples.forEach((apple, index) => {
+        if (head.x === apple.x && head.y === apple.y) {
+          score += getApplePoints(apple.color); // Adiciona pontos conforme a cor da maçã
+          apples.splice(index, 1); // Remove a maçã colidida
+          generateApple(appleColors[Math.floor(Math.random() * appleColors.length)]); // Gera uma nova maçã aleatória
+          eatSound.currentTime = 0; // Reinicia o som para poder ser tocado novamente
+          eatSound.play(); // Toca o som de comer
+          snake.push({ ...snake[snake.length - 1] }); // Adiciona uma nova parte à cobrinha ao comer
+        }
+      });
+
+      snake.unshift(head);
+      snake.pop();
+    }
+
+    function getApplePoints(color) {
+      switch (color) {
+        case appleColors[0]: // Maçã amarela
+          return 10;
+        case appleColors[1]: // Maçã vermelha
+          return 20;
+        case appleColors[2]: // Maçã azul turquesa
+          return 30;
+        default:
+          return 0;
+      }
+    }
+
+    function gameLoop() {
+      if (!isPaused) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        moveSnake();
+        drawSnake();
+        spawnApples(); // Gera novas maçãs
+        drawApples(); // Desenha as maçãs
+        drawHUD(); // Desenha o HUD da pontuação
+      }
+    }
+
+    function startGame() {
+      snake = [{ x: 10, y: 10 }];
+      direction = 'right';
+      isPaused = false;
+      score = 0; // Reinicia a pontuação
+      scoreHUD.textContent = score; // Atualiza o HUD
+      apples = []; // Reinicia as maçãs
+      gameInterval = setInterval(gameLoop, gameSpeed);
+    }
+
+    function pauseGame() {
+      isPaused = !isPaused;
+    }
+
+    function resetGame() {
+      clearInterval(gameInterval);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function handleTouchStart(event) {
+      touchStartX = event.touches[0].clientX;
+      touchStartY = event.touches[0].clientY;
+    }
+
+    function handleTouchMove(event) {
+      if (!touchStartX || !touchStartY) {
+        return;
+      }
+
+      const touchEndX = event.touches[0].clientX;
+      const touchEndY = event.touches[0].clientY;
+      const deltaX = touchEndX - touchStartX;
+      const deltaY = touchEndY - touchStartY;
+
+      if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        // Movimento horizontal
+        if (deltaX > 0 && direction !== 'left') {
+          direction = 'right';
+        } else if (deltaX < 0 && direction !== 'right') {
+          direction = 'left';
+        }
+      } else {
+        // Movimento vertical
+        if (deltaY > 0 && direction !== 'up') {
+          direction = 'down';
+        } else if (deltaY < 0 && direction !== 'down') {
+          direction = 'up';
+        }
+      }
+
+      touchStartX = 0;
+      touchStartY = 0;
+    }
+
+    function drawHUD() {
+      scoreHUD.textContent = score;
+    }
+
+
+/**    function drawSnake() {
+      snake.forEach((segment, index) => {
+        ctx.fillStyle = index === 0 ? '#ffffff' : '#00FF00'; // Cor preta para a cabeça, verde para o corpo
+        ctx.fillRect(segment.x * 20, segment.y * 20, 20, 20);
+      });
+    }
+**/
+const emojiImg = new Image();
+emojiImg.src = 'img/cabeca.png'; // Substitua pelo caminho do seu emoji
+
+const emojiApple = new Image();
+emojiApple.src = 'img/maca.png'; // Substitua pelo caminho do seu emoji de maçã
+
+
+function drawSnake() {
+  snake.forEach((segment, index) => {
+    if (index === 0) {
+      // Desenhar a imagem do emoji na posição da cabeça da cobrinha
+      ctx.drawImage(emojiImg, segment.x * 20, segment.y * 20, 20, 20);
+    } else {
+      // Desenhar o emoji de maçã no lugar do corpo da cobrinha
+      ctx.drawImage(emojiApple, segment.x * 20, segment.y * 20, 20, 20);
+    }
+  });
+}
+
+
+    // Event listeners
+    startButton.addEventListener('click', startGame);
+    pauseButton.addEventListener('click', pauseGame);
+    resetButton.addEventListener('click', resetGame);
+    document.addEventListener('touchstart', handleTouchStart, false);
+    document.addEventListener('touchmove', handleTouchMove, false);
+
+    // Pré-carregar o som de comer
+    eatSound.volume = 0.2; // Ajuste o volume conforme desejado
+    eatSound.load();
+  </script>
+</body>
+</html>
